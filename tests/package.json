@@ -1,0 +1,9 @@
+{
+  "type": "module",
+  "scripts": {
+    "test": "node --test gallery.test.js"
+  },
+  "dependencies": {
+    "playwright": "^1.60.0"
+  }
+}
