@@ -85,6 +85,7 @@ async function loadImages() {
     const d = await (await fetch(`${API}/tag/${encodeURIComponent(selectedTag.value)}/preview`)).json()
     const ids = d.image_ids || d.ids || []
     images.value = ids.map(id => ({ id, url: `${API}/image/${id}`, metaUrl: `${API}/image/${id}/meta` }))
+    hasMore.value = true
   } catch { error.value = 'Failed to load images' }
   loading.value = false
   observeScroll()
@@ -100,6 +101,7 @@ async function appendRandom() {
   if (loadingMore.value) return
   loadingMore.value = true
   const p = new URLSearchParams({ _t: Date.now() })
+  if (selectedTag.value) p.set('tag', selectedTag.value)
   if (orientation.value) p.set('orientation', orientation.value)
   try {
     const resp = await fetch(`${API}/random?${p}`)
@@ -243,7 +245,7 @@ function panEnd() { isPanning.value = false }
       </div>
 
       <!-- Scroll sentinel + Load More -->
-      <div v-if="images.length && hasMore && !selectedTag && !selectedCategory" class="flex flex-col items-center py-8 gap-4">
+      <div v-if="images.length && hasMore" class="flex flex-col items-center py-8 gap-4">
         <div id="scroll-sentinel" class="h-4" />
         <button v-if="!loadingMore" @click="loadMore" class="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-xl text-sm font-medium transition-all duration-150 cursor-pointer border border-gray-700/50">Load More</button>
         <div v-if="loadingMore" class="flex items-center gap-2 text-gray-500 text-sm">

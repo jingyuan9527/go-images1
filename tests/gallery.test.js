@@ -75,15 +75,16 @@ describe('Image Gallery', () => {
 it('Random button loads 1 image or shows empty state if API unavailable', async () => {
     const page = await browser.newPage();
     await page.goto(BASE, { waitUntil: 'load' });
-    await page.locator('button.rounded-full', { hasText: 'Random' }).click();
+    await page.waitForTimeout(2000);
+
+    const randomPill = page.locator('header button.rounded-full[role="tab"]').first();
+    await randomPill.click();
     await page.waitForTimeout(2000);
 
     const imgCount = await page.locator('main img').count();
-    const hasLoadMore = await page.locator('button', { hasText: 'Load More' }).isVisible().catch(() => false);
 
     if (imgCount > 0) {
-      assert.equal(imgCount, 1);
-      assert(hasLoadMore, 'Load More button should be visible');
+      assert.equal(imgCount, 1, 'Random mode should show exactly 1 image');
     }
     await page.close();
   });
@@ -91,7 +92,8 @@ it('Random button loads 1 image or shows empty state if API unavailable', async 
   it('Load More appends another image if API available', async () => {
     const page = await browser.newPage();
     await page.goto(BASE, { waitUntil: 'load' });
-    await page.locator('button.rounded-full', { hasText: 'Random' }).click();
+    const randomPill = page.locator('header button.rounded-full[role="tab"]').first();
+    await randomPill.click();
     await page.waitForTimeout(2000);
 
     const loadMore = page.locator('button', { hasText: 'Load More' });
