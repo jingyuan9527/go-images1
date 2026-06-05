@@ -179,9 +179,7 @@ function panEnd() { isPanning.value = false }
       <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
         <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <div class="flex items-center gap-3 min-w-0">
-            <h1 class="text-xl sm:text-2xl font-bold font-display text-white shrink-0 tracking-tight">
-              <span class="text-indigo-400">~</span> Gallery
-            </h1>
+            <h1 class="text-xl sm:text-2xl font-bold font-display text-white shrink-0 tracking-tight">Gallery</h1>
             <div class="relative flex-1 min-w-0 sm:min-w-[200px] max-w-sm">
               <label for="tag-search" class="sr-only">Search tags</label>
               <input id="tag-search" v-model="searchQuery" @focus="showDropdown = true" @blur="setTimeout(() => showDropdown = false, 200)" @keydown.enter="filteredTags.length && selectTag(filteredTags[0])" placeholder="Search tag..." class="w-full pl-9 pr-3 py-2 bg-gray-800/80 border border-gray-700/60 rounded-xl text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 transition-colors duration-200" />
