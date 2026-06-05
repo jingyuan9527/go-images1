@@ -175,7 +175,7 @@ function panEnd() { isPanning.value = false }
 
 <template>
   <div class="min-h-screen bg-gray-950 text-gray-100 font-sans antialiased">
-    <header class="sticky top-0 z-30 bg-gray-950/80 backdrop-blur-xl border-b border-gray-800/60">
+    <header class="sticky top-0 z-30 mx-2 sm:mx-4 mt-2 rounded-2xl bg-gray-950/80 backdrop-blur-xl border border-gray-800/60 shadow-lg shadow-black/20">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
         <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
           <div class="flex items-center gap-3 min-w-0">
@@ -184,10 +184,10 @@ function panEnd() { isPanning.value = false }
               <label for="tag-search" class="sr-only">Search tags</label>
               <input id="tag-search" v-model="searchQuery" @focus="showDropdown = true" @blur="setTimeout(() => showDropdown = false, 200)" @keydown.enter="filteredTags.length && selectTag(filteredTags[0])" placeholder="Search tag..." class="w-full pl-9 pr-3 py-2 bg-gray-800/80 border border-gray-700/60 rounded-xl text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 transition-colors duration-200" />
               <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" /></svg>
-              <div v-if="showDropdown && filteredTags.length" class="absolute top-full mt-1.5 left-0 right-0 bg-gray-800 border border-gray-700/60 rounded-xl max-h-64 overflow-y-auto z-50 shadow-2xl shadow-black/40">
+              <div v-if="showDropdown && filteredTags.length" class="absolute top-full mt-1.5 left-0 right-0 bg-gray-800 border border-gray-700/60 rounded-xl max-h-72 overflow-y-auto z-50 shadow-2xl shadow-black/40">
                 <div class="sticky top-0 bg-gray-800/95 backdrop-blur px-4 py-1.5 text-xs text-gray-500 border-b border-gray-700/40 flex items-center gap-2">
-                  <span>{{ filteredTags.length }} tag match</span>
-                  <span v-if="searchQuery" class="text-indigo-400">· "{{ searchQuery }}"</span>
+                  <span v-if="searchQuery">{{ filteredTags.length }} match</span>
+                  <span v-else>Available tags · {{ filteredTags.length }}</span>
                 </div>
                 <button v-for="tag in filteredTags" :key="tag.name || tag" @mousedown.prevent="selectTag(tag)" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-700/60 text-gray-300 hover:text-white transition-colors duration-150 flex items-center gap-2">
                   <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" /></svg>
@@ -198,29 +198,29 @@ function panEnd() { isPanning.value = false }
             </div>
           </div>
           <nav class="flex gap-1 bg-gray-800/60 rounded-xl p-1 self-start sm:self-auto" aria-label="Orientation filter">
-            <button @click="toggleOrientation('portrait')" :class="orientation==='portrait' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 min-h-[36px]" aria-label="Portrait">
+            <button @click="toggleOrientation('portrait')" :class="orientation==='portrait' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 min-h-[36px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60" aria-label="Portrait">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m0 0l-4-4m4 4l4-4" /></svg>
               <span class="hidden sm:inline">竖</span>
             </button>
-            <button @click="toggleOrientation('landscape')" :class="orientation==='landscape' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 min-h-[36px]" aria-label="Landscape">
+            <button @click="toggleOrientation('landscape')" :class="orientation==='landscape' ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 min-h-[36px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60" aria-label="Landscape">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4m0 0l4-4m-4 4l4 4" /></svg>
               <span class="hidden sm:inline">横</span>
             </button>
-            <button @click="orientation='';selectedTag.value?loadImages():loadRandom()" :class="!orientation ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 min-h-[36px]" aria-label="All orientations">
+            <button @click="orientation='';selectedTag.value?loadImages():loadRandom()" :class="!orientation ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-400 hover:text-gray-200 hover:bg-gray-700/50'" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-150 min-h-[36px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60" aria-label="All orientations">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" /></svg>
               <span class="hidden sm:inline">All</span>
             </button>
           </nav>
         </div>
         <div class="flex gap-1.5 mt-3 overflow-x-auto pb-1 scrollbar-thin -mx-4 sm:mx-0 px-4 sm:px-0" role="tablist" aria-label="Categories and tags">
-          <button @click="selectedTag='';selectedCategory='';searchQuery='';loadRandom()" :class="!selectedTag&&!selectedCategory ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-800/60 text-gray-400 hover:text-white hover:bg-gray-700/50'" class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-150 min-h-[32px]" role="tab">
+          <button @click="selectedTag='';selectedCategory='';searchQuery='';loadRandom()" :class="!selectedTag&&!selectedCategory ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-800/60 text-gray-400 hover:text-white hover:bg-gray-700/50'" class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-150 min-h-[32px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60" role="tab">
             <span class="flex items-center gap-1.5">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
               Random
             </span>
           </button>
-          <button v-for="cat in categories" :key="cat.name||cat" @click="selectCategory(cat)" :class="selectedCategory===(cat.name||cat) ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-800/60 text-gray-400 hover:text-white hover:bg-gray-700/50'" class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-150 min-h-[32px]" role="tab">{{ cat.name||cat }}</button>
-          <button v-for="tag in featuredTags" :key="tag.name||tag" @click="selectTag(tag)" :class="selectedTag===(tag.name||tag) ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-800/60 text-gray-400 hover:text-white hover:bg-gray-700/50'" class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-150 min-h-[32px]" role="tab">{{ tag.name||tag }}</button>
+          <button v-for="cat in categories" :key="cat.name||cat" @click="selectCategory(cat)" :class="selectedCategory===(cat.name||cat) ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-800/60 text-gray-400 hover:text-white hover:bg-gray-700/50'" class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-150 min-h-[32px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60" role="tab">{{ cat.name||cat }}</button>
+          <button v-for="tag in featuredTags" :key="tag.name||tag" @click="selectTag(tag)" :class="selectedTag===(tag.name||tag) ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-800/60 text-gray-400 hover:text-white hover:bg-gray-700/50'" class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-150 min-h-[32px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60" role="tab">{{ tag.name||tag }}</button>
         </div>
       </div>
     </header>
