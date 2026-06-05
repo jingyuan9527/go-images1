@@ -2,6 +2,11 @@
 import { ref, onMounted, computed, onUnmounted } from 'vue'
 
 const API = '/api/proxy/v1'
+const authenticated = ref(false)
+const authChecking = ref(true)
+const authPassword = ref('')
+const authError = ref('')
+
 const images = ref([])
 const tags = ref([])
 const featuredTags = ref([])
@@ -40,6 +45,17 @@ let observer = null
 const sentinel = ref(null)
 
 onMounted(async () => {
+  const authed = sessionStorage.getItem('gallery_auth') === '1'
+  if (authed) {
+    authenticated.value = true
+    authChecking.value = false
+    await loadGallery()
+  } else {
+    authChecking.value = false
+  }
+})
+
+async function loadGallery() {
   await Promise.all([fetchTags(), fetchFeaturedTags(), fetchCategories()])
   if (featuredTags.value.length > 0) {
     selectedTag.value = featuredTags.value[0].name || featuredTags.value[0]
@@ -47,7 +63,27 @@ onMounted(async () => {
   } else {
     loadRandom()
   }
-})
+}
+
+async function doAuth() {
+  authError.value = ''
+  try {
+    const res = await fetch('/api/auth', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: authPassword.value })
+    })
+    if (res.ok) {
+      sessionStorage.setItem('gallery_auth', '1')
+      authenticated.value = true
+      await loadGallery()
+    } else {
+      authError.value = '密码错误'
+    }
+  } catch {
+    authError.value = '验证失败，请重试'
+  }
+}
 
 onUnmounted(() => { if (observer) observer.disconnect() })
 
@@ -175,6 +211,26 @@ function panEnd() { isPanning.value = false }
 
 <template>
   <div class="min-h-screen bg-gray-950 text-gray-100 font-sans antialiased">
+    <!-- Auth Modal -->
+    <div v-if="!authenticated && !authChecking" class="fixed inset-0 z-50 bg-gray-950 flex items-center justify-center p-4">
+      <div class="w-full max-w-sm bg-gray-900 border border-gray-800 rounded-2xl p-8 shadow-2xl shadow-black/40">
+        <div class="text-center mb-6">
+          <h1 class="text-2xl font-bold font-display text-white tracking-tight">Gallery</h1>
+          <p class="text-gray-400 text-sm mt-1">Enter access password</p>
+        </div>
+        <form @submit.prevent="doAuth" class="space-y-4">
+          <div>
+            <label for="auth-password" class="sr-only">Password</label>
+            <input id="auth-password" v-model="authPassword" type="password" placeholder="Password" class="w-full px-4 py-2.5 bg-gray-800 border border-gray-700 rounded-xl text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 transition-colors duration-200" autofocus />
+          </div>
+          <p v-if="authError" class="text-red-400 text-xs text-center">{{ authError }}</p>
+          <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-sm font-medium transition-colors duration-200 cursor-pointer">Enter</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- App -->
+    <template v-if="authenticated">
     <header class="sticky top-0 z-30 mx-2 sm:mx-4 mt-2 rounded-2xl bg-gray-950/80 backdrop-blur-xl border border-gray-800/60 shadow-lg shadow-black/20">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
         <div class="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
@@ -280,6 +336,7 @@ function panEnd() { isPanning.value = false }
         </div>
       </transition>
     </Teleport>
+    </template>
   </div>
 </template>
 

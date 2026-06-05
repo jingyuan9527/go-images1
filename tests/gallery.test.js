@@ -3,7 +3,20 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 
 const BASE = 'http://localhost:8808';
+const PASSWORD = 'test123';
 let browser;
+
+async function login(page) {
+  await page.goto(BASE, { waitUntil: 'load' });
+  const pwInput = page.locator('#auth-password');
+  if (await pwInput.isVisible().catch(() => false)) {
+    await pwInput.fill(PASSWORD);
+    await page.locator('button[type="submit"]').click();
+    await page.waitForTimeout(1000);
+  }
+}
+
+const PAGE = 'login(page);';
 
 before(async () => {
   browser = await chromium.launch({ headless: true });
@@ -26,14 +39,14 @@ async function getFeaturedPill(page) {
 describe('Image Gallery', () => {
   it('homepage loads and shows correct title', async () => {
     const page = await browser.newPage();
-    await page.goto(BASE, { waitUntil: 'load' });
+    await login(page);
     assert((await page.title()).includes('Gallery'));
     await page.close();
   });
 
   it('header has title, search input, and orientation buttons', async () => {
     const page = await browser.newPage();
-    await page.goto(BASE, { waitUntil: 'load' });
+    await login(page);
 
     assert(await page.locator('h1').first().isVisible());
     assert(await page.locator('input[placeholder*="Search"]').first().isVisible());
@@ -46,7 +59,7 @@ describe('Image Gallery', () => {
 
   it('pills are rendered (Random + categories + featured)', async () => {
     const page = await browser.newPage();
-    await page.goto(BASE, { waitUntil: 'load' });
+    await login(page);
     const firstPill = page.locator('button.rounded-full').first();
     const text = await firstPill.textContent();
     assert(text.includes('Random'), `Expected Random pill, got: ${text}`);
@@ -55,7 +68,7 @@ describe('Image Gallery', () => {
 
   it('orientation filter buttons toggle active state', async () => {
     const page = await browser.newPage();
-    await page.goto(BASE, { waitUntil: 'load' });
+    await login(page);
 
     await page.locator('button', { hasText: '竖' }).click();
     await page.waitForTimeout(500);
@@ -74,7 +87,7 @@ describe('Image Gallery', () => {
 
 it('Random button loads 1 image or shows empty state if API unavailable', async () => {
     const page = await browser.newPage();
-    await page.goto(BASE, { waitUntil: 'load' });
+    await login(page);
     await page.waitForTimeout(2000);
 
     const randomPill = page.locator('header button.rounded-full[role="tab"]').first();
@@ -91,7 +104,7 @@ it('Random button loads 1 image or shows empty state if API unavailable', async 
 
   it('Load More appends another image if API available', async () => {
     const page = await browser.newPage();
-    await page.goto(BASE, { waitUntil: 'load' });
+    await login(page);
     const randomPill = page.locator('header button.rounded-full[role="tab"]').first();
     await randomPill.click();
     await page.waitForTimeout(2000);
@@ -112,7 +125,7 @@ it('Random button loads 1 image or shows empty state if API unavailable', async 
 
   it('clicking image opens modal if images loaded', async () => {
     const page = await browser.newPage();
-    await page.goto(BASE, { waitUntil: 'load' });
+    await login(page);
     await page.locator('button.rounded-full', { hasText: 'Random' }).click();
     await page.waitForTimeout(2000);
 
@@ -131,7 +144,7 @@ it('Random button loads 1 image or shows empty state if API unavailable', async 
 
   it('double-click in modal toggles zoom if modal opened', async () => {
     const page = await browser.newPage();
-    await page.goto(BASE, { waitUntil: 'load' });
+    await login(page);
     await page.locator('button.rounded-full', { hasText: 'Random' }).click();
     await page.waitForTimeout(2000);
 
@@ -156,7 +169,7 @@ it('Random button loads 1 image or shows empty state if API unavailable', async 
 
   it('search input exists and can be typed into', async () => {
     const page = await browser.newPage();
-    await page.goto(BASE, { waitUntil: 'load' });
+    await login(page);
     await page.waitForTimeout(1000);
 
     const input = page.locator('input').first();
@@ -181,7 +194,7 @@ it('Random button loads 1 image or shows empty state if API unavailable', async 
 
   it('category pills are rendered if API available', async () => {
     const page = await browser.newPage();
-    await page.goto(BASE, { waitUntil: 'load' });
+    await login(page);
     const texts = await getPillTexts(page);
 
     for (const cat of ['Cosplay', 'Japan', 'Korean']) {

@@ -2,8 +2,9 @@ package main
 
 import (
 	"bytes"
+	"crypto/subtle"
 	"embed"
-	"io"
+	"encoding/json"
 	"io/fs"
 	"log"
 	"net/http"
@@ -48,7 +49,36 @@ func init() {
 }
 
 func main() {
+	password := os.Getenv("ACCESS_PASSWORD")
+	if password == "" {
+		log.Println("ACCESS_PASSWORD not set — no auth required")
+	}
+
 	mux := http.NewServeMux()
+
+	// Auth
+	if password != "" {
+		mux.HandleFunc("/api/auth", func(w http.ResponseWriter, r *http.Request) {
+			if r.Method != "POST" {
+				http.Error(w, "method not allowed", 405)
+				return
+			}
+			var body struct {
+				Password string `json:"password"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				http.Error(w, "bad request", 400)
+				return
+			}
+			if subtle.ConstantTimeCompare([]byte(body.Password), []byte(password)) == 1 {
+				w.WriteHeader(200)
+				json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+				return
+			}
+			http.Error(w, "forbidden", 403)
+		})
+	}
+
 	mux.HandleFunc("/api/proxy/", proxyHandler)
 	mux.HandleFunc("/api/proxy", proxyHandler)
 
@@ -204,6 +234,3 @@ func (c *Cache) Set(path, query string, data []byte, contentType, contentEncodin
 		Expires:         time.Now().Add(c.ttlFor(path)),
 	}
 }
-
-// Ensure io is used (suppress unused import warning)
-var _ = io.Discard

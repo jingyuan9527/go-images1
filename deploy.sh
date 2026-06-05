@@ -45,10 +45,17 @@ if [ -n "$proxy" ]; then
   info "Using proxy: $proxy"
 fi
 
+AUTH_ARGS=""
+if [ -n "${ACCESS_PASSWORD:-}" ]; then
+  AUTH_ARGS="-e ACCESS_PASSWORD=$ACCESS_PASSWORD"
+  info "Access password enabled"
+fi
+
 info "Starting container on ${BIND_ADDR}:${PORT}..."
 docker run -d \
   -p "${BIND_ADDR}:${PORT}:8808" \
   $PROXY_ARGS \
+  $AUTH_ARGS \
   --name "$APP_NAME" \
   --restart unless-stopped \
   "$APP_NAME" >/dev/null
