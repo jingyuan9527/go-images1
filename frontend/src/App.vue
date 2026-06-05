@@ -191,7 +191,7 @@ async function appendRandom() {
 }
 
 async function loadMore() {
-  if (mode.value === 'gallery' && selectedGallery.value) {
+  if (mode.value === 'gallery' && viewingGallery.value && selectedGallery.value) {
     galleryPage.value++
     loadGalleryPage(galleryPage.value)
     return
@@ -224,42 +224,85 @@ function clearFilter(type) {
   else if (type === 'orientation') { orientation.value = ''; (mode.value === 'tag' && selectedTag.value) ? loadImages() : loadRandom() }
 }
 
+const galleriesOffset = ref(0)
+const galleriesTotal = ref(0)
+const viewingGallery = ref(false) // true = viewing gallery detail, false = gallery list
+
 function selectMode(m) {
   if (m === 'random') {
     mode.value = 'random'; selectedTag.value = ''; selectedCategory.value = ''; searchQuery.value = ''
-    selectedGallery.value = null; images.value = []
+    selectedGallery.value = null; viewingGallery.value = false; images.value = []
     loadRandom()
   } else if (m === 'gallery') {
     mode.value = 'gallery'; selectedTag.value = ''; selectedCategory.value = ''; searchQuery.value = ''
-    images.value = []; loading.value = true; error.value = ''
-    galleryPage.value = 1; galleryTotalPages.value = 1
-    loadRandomGallery()
+    viewingGallery.value = false; images.value = []; loading.value = true; error.value = ''
+    galleriesOffset.value = 0; galleries.value = []
+    fetchGalleries()
   }
 }
 
-function loadRandomGallery() {
-  mode.value = 'gallery'
-  loading.value = true; error.value = ''; images.value = []
-  fetch(`${API}/gallery/random`).then(r => r.json()).then(d => {
-    selectedGallery.value = { id: d.id, title: d.title, name: d.name }
-    galleryPage.value = 1
-    const pagination = d.images_pagination || {}
-    galleryTotalPages.value = pagination.total_pages || 1
-    const raw = d.images || d.items || []
-    images.value = raw.map(item => {
-      const imgId = item.id || item.image_id
-      return { id: imgId, url: `${API}/image/${imgId}`, metaUrl: `${API}/image/${imgId}/meta` }
-    })
+async function fetchGalleries() {
+  try {
+    const d = await (await fetch(`${API}/galleries?offset=${galleriesOffset.value}&limit=20`)).json()
+    const items = d.items || []
+    if (galleriesOffset.value === 0) {
+      galleries.value = items
+    } else {
+      galleries.value.push(...items)
+    }
+    galleriesTotal.value = d.total || 0
     loading.value = false
+  } catch { loading.value = false; error.value = 'Failed to load galleries' }
+}
+
+function loadMoreGalleries() {
+  galleriesOffset.value += 20
+  loading.value = true
+  fetchGalleries()
+}
+
+function selectGallery(gallery) {
+  selectedGallery.value = gallery
+  viewingGallery.value = true
+  loading.value = true; error.value = ''; images.value = []
+  galleryPage.value = 1; galleryTotalPages.value = 1
+  const id = gallery.id || gallery.gallery_id
+  fetch(`${API}/gallery/${id}`).then(r => r.json()).then(d => {
+    const raw = d.images || d.items || []
+    const uploaded = raw.filter(i => i.uploaded !== false)
+    if (uploaded.length > 0) {
+      // Gallery has uploaded images — use them
+      galleryPage.value = 1
+      const pagination = d.images_pagination || {}
+      galleryTotalPages.value = pagination.total_pages || 1
+      images.value = raw.map(item => {
+        const imgId = item.id || item.image_id
+        return { id: imgId, url: `${API}/image/${imgId}`, metaUrl: `${API}/image/${imgId}/meta` }
+      })
+      loading.value = false
+    } else {
+      // No uploaded images — auto-load a random gallery that works
+      fetch(`${API}/gallery/random`).then(r2 => r2.json()).then(d2 => {
+        selectedGallery.value = { id: d2.id, title: d2.title }
+        galleryPage.value = 1
+        const pagination = d2.images_pagination || {}
+        galleryTotalPages.value = pagination.total_pages || 1
+        const raw2 = d2.images || d2.items || []
+        images.value = raw2.map(item => {
+          const imgId = item.id || item.image_id
+          return { id: imgId, url: `${API}/image/${imgId}`, metaUrl: `${API}/image/${imgId}/meta` }
+        })
+        loading.value = false
+      }).catch(() => { error.value = 'Failed to load gallery'; loading.value = false })
+    }
   }).catch(() => { error.value = 'Failed to load gallery'; loading.value = false })
 }
 
 function loadGalleryPage(page) {
   if (!selectedGallery.value) return
   const id = selectedGallery.value.id
-  const pageParam = page > 1 ? `?page=${page}` : ''
   loading.value = true
-  fetch(`${API}/gallery/${id}${pageParam}`).then(r => r.json()).then(d => {
+  fetch(`${API}/gallery/${id}?page=${page}`).then(r => r.json()).then(d => {
     const pagination = d.images_pagination || {}
     galleryTotalPages.value = pagination.total_pages || 1
     const raw = d.images || d.items || []
@@ -277,12 +320,8 @@ function loadGalleryPage(page) {
   }).catch(() => { error.value = 'Failed to load gallery'; loading.value = false })
 }
 
-function refreshGallery() {
-  loadRandomGallery()
-}
-
-function backToGalleries() {
-  loadRandomGallery()
+function backToGalleryList() {
+  viewingGallery.value = false; selectedGallery.value = null; images.value = []
 }
 
 function resetZoom() { zoom.value = 1; panX.value = 0; panY.value = 0 }
@@ -432,15 +471,45 @@ function panEnd() { isPanning.value = false }
         <button @click="selectedTag?loadImages():loadRandom()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm text-gray-300 transition-colors duration-150 cursor-pointer">Retry</button>
       </div>
 
-      <!-- Gallery: random gallery with its images -->
-      <div v-else-if="mode === 'gallery'" class="space-y-4">
+      <!-- Gallery: list -->
+      <div v-else-if="mode === 'gallery' && !viewingGallery" class="space-y-4">
+        <div class="flex items-center gap-2 text-gray-400">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+          <h2 class="text-lg font-semibold text-white">图集列表</h2>
+          <span v-if="galleriesTotal" class="text-xs text-gray-500">共 {{ galleriesTotal }} 个图集</span>
+        </div>
+        <div v-if="loading && !galleries.length" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+          <div v-for="i in 6" :key="i" class="rounded-xl bg-gray-800/60 animate-pulse h-24" />
+        </div>
+        <div v-else-if="!galleries.length" class="flex flex-col items-center justify-center py-24 text-gray-500 gap-4">
+          <svg class="w-12 h-12 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+          <p class="text-sm">No galleries available</p>
+        </div>
+        <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
+          <div v-for="gallery in galleries" :key="gallery.id || gallery.gallery_id" @click="selectGallery(gallery)" class="group relative cursor-pointer rounded-xl overflow-hidden bg-gray-800/40 border border-gray-800/60 hover:border-indigo-500/30 transition-all duration-300 p-4 flex flex-col gap-2 min-h-[100px]">
+            <div class="flex items-start gap-2">
+              <svg class="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <div class="min-w-0">
+                <p class="text-sm font-medium text-gray-200 truncate group-hover:text-white transition-colors">{{ gallery.title || gallery.name || 'Gallery' }}</p>
+                <p class="text-xs text-gray-500 mt-0.5">{{ gallery.image_count || gallery.count || '?' }} 张图片</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- Load more galleries -->
+        <div class="flex justify-center py-4">
+          <button v-if="galleries.length && galleries.length < galleriesTotal" @click="loadMoreGalleries" class="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-xl text-sm font-medium transition-all duration-150 cursor-pointer border border-gray-700/50">加载更多图集</button>
+        </div>
+      </div>
+
+      <!-- Gallery: detail -->
+      <div v-else-if="mode === 'gallery' && viewingGallery" class="space-y-4">
         <div class="flex items-center gap-2 flex-wrap">
-          <svg class="w-5 h-5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-          <span v-if="selectedGallery" class="text-sm text-gray-300 font-medium truncate flex-1 min-w-0">{{ selectedGallery.title || '随机图集' }}</span>
-          <button @click="loadRandomGallery" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/80 hover:bg-indigo-600 text-white rounded-lg text-xs font-medium transition-colors duration-150 cursor-pointer shrink-0" title="下一个随机图集">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-            下一个
+          <button @click="backToGalleryList" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-800/60 hover:bg-gray-700/50 text-gray-400 hover:text-white rounded-lg text-xs font-medium transition-colors duration-150 cursor-pointer shrink-0">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 12H5m0 0l7-7m-7 7l7 7" /></svg>
+            返回
           </button>
+          <span v-if="selectedGallery" class="text-sm text-gray-300 font-medium truncate flex-1 min-w-0">{{ selectedGallery.title || selectedGallery.name }}</span>
         </div>
         <!-- Loading skeleton -->
         <div v-if="loading" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
@@ -454,9 +523,9 @@ function panEnd() { isPanning.value = false }
               <div class="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </div>
           </div>
-          <div v-else-if="!loading" class="flex flex-col items-center justify-center py-24 text-gray-500 gap-4">
+          <div v-else class="flex flex-col items-center justify-center py-24 text-gray-500 gap-4">
             <svg class="w-12 h-12 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-            <p class="text-sm">No images available</p>
+            <p class="text-sm">该图集暂无可用图片</p>
           </div>
           <!-- Load More -->
           <div v-if="images.length && hasMore" class="flex flex-col items-center py-8 gap-4">
