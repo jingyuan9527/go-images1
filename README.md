@@ -44,21 +44,21 @@
 git clone https://github.com/jingyuan9527/go-images1.git
 cd go-images1
 
-# 设置访问密码（可选，不设置则无需密码）
-export ACCESS_PASSWORD=your_secret
-
-# 需要代理时
-export HTTP_PROXY=http://your-proxy:port
-export HTTPS_PROXY=http://your-proxy:port
-
-# 默认绑定 127.0.0.1:8808
+# 基本使用（无密码，内网访问）
 ./deploy.sh
 
-# 开放局域网
+# 设置访问密码
+ACCESS_PASSWORD=your_secret ./deploy.sh
+
+# 开放局域网访问
 BIND_ADDR=0.0.0.0 ./deploy.sh
 
-# 指定其他端口
+# 指定端口
 PORT=3000 ./deploy.sh
+
+# 多参数组合使用
+ACCESS_PASSWORD=your_secret BIND_ADDR=0.0.0.0 PORT=3000 ./deploy.sh
+ACCESS_PASSWORD=your_secret HTTP_PROXY=http://your-proxy:port ./deploy.sh
 ```
 
 ### 手动 Docker
