@@ -29,9 +29,9 @@ const lastDist = ref(0)
 const filteredTags = computed(() => {
   const list = tags.value
   if (!list.length) return []
-  if (!searchQuery.value) return list.slice(0, 80)
+  if (!searchQuery.value) return list
   const q = searchQuery.value.toLowerCase()
-  return list.filter(t => (t.name || t).toLowerCase().includes(q)).slice(0, 80)
+  return list.filter(t => (t.name || t).toLowerCase().includes(q))
 })
 
 const tagCount = computed(() => tags.value.length)
@@ -117,9 +117,7 @@ async function appendRandom() {
 }
 
 async function loadMore() {
-  if (!selectedTag.value && !selectedCategory.value) {
-    await appendRandom()
-  }
+  await appendRandom()
 }
 
 function selectTag(tag) {

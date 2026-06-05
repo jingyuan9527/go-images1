@@ -25,6 +25,10 @@ var proxyCache *Cache
 func init() {
 	remote, _ := url.Parse("https://veil.ortlinde.com")
 	veilProxy = httputil.NewSingleHostReverseProxy(remote)
+	veilProxy.Transport = &http.Transport{
+		ResponseHeaderTimeout: 30 * time.Second,
+		Proxy:                 http.ProxyFromEnvironment,
+	}
 	director := veilProxy.Director
 	veilProxy.Director = func(req *http.Request) {
 		director(req)

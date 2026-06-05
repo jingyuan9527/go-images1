@@ -101,10 +101,12 @@ it('Random button loads 1 image or shows empty state if API unavailable', async 
       await page.close();
       return;
     }
+    const before = await page.locator('main img').count();
     await loadMore.click();
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(10000);
 
-    assert.equal(await page.locator('main img').count(), 2, 'After load more, 2 images');
+    const after = await page.locator('main img').count();
+    assert.equal(after, before + 1, 'Load more should add 1 image');
     await page.close();
   });
 
