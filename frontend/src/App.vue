@@ -34,6 +34,8 @@ const filteredTags = computed(() => {
   return list.filter(t => (t.name || t).toLowerCase().includes(q)).slice(0, 80)
 })
 
+const tagCount = computed(() => tags.value.length)
+
 let observer = null
 const sentinel = ref(null)
 
@@ -184,13 +186,17 @@ function panEnd() { isPanning.value = false }
             </h1>
             <div class="relative flex-1 min-w-0 sm:min-w-[200px] max-w-sm">
               <label for="tag-search" class="sr-only">Search tags</label>
-              <input id="tag-search" v-model="searchQuery" @focus="showDropdown = true" @blur="setTimeout(() => showDropdown = false, 200)" @keydown.enter="filteredTags.length && selectTag(filteredTags[0])" placeholder="Search tags..." class="w-full pl-9 pr-3 py-2 bg-gray-800/80 border border-gray-700/60 rounded-xl text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 transition-colors duration-200" />
+              <input id="tag-search" v-model="searchQuery" @focus="showDropdown = true" @blur="setTimeout(() => showDropdown = false, 200)" @keydown.enter="filteredTags.length && selectTag(filteredTags[0])" placeholder="Search {{ tagCount }} tags..." class="w-full pl-9 pr-3 py-2 bg-gray-800/80 border border-gray-700/60 rounded-xl text-sm text-gray-100 placeholder-gray-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/40 transition-colors duration-200" />
               <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M11 19a8 8 0 100-16 8 8 0 000 16z" /></svg>
               <div v-if="showDropdown && filteredTags.length" class="absolute top-full mt-1.5 left-0 right-0 bg-gray-800 border border-gray-700/60 rounded-xl max-h-64 overflow-y-auto z-50 shadow-2xl shadow-black/40">
-                <button v-for="tag in filteredTags" :key="tag.name || tag" @mousedown.prevent="selectTag(tag)" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-700/60 text-gray-300 hover:text-white transition-colors duration-150 first:rounded-t-xl last:rounded-b-xl flex items-center gap-2">
+                <div class="sticky top-0 bg-gray-800/95 backdrop-blur px-4 py-1.5 text-xs text-gray-500 border-b border-gray-700/40 flex items-center gap-2">
+                  <span>{{ filteredTags.length }} tag match</span>
+                  <span v-if="searchQuery" class="text-indigo-400">· "{{ searchQuery }}"</span>
+                </div>
+                <button v-for="tag in filteredTags" :key="tag.name || tag" @mousedown.prevent="selectTag(tag)" class="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-700/60 text-gray-300 hover:text-white transition-colors duration-150 flex items-center gap-2">
                   <svg class="w-3.5 h-3.5 text-gray-500 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z" /></svg>
-                  <span class="truncate">{{ tag.name || tag }}</span>
-                  <span v-if="tag.count" class="ml-auto text-gray-500 text-xs tabular-nums">{{ tag.count }}</span>
+                  <span class="truncate flex-1">{{ tag.name || tag }}</span>
+                  <span v-if="tag.gallery_count" class="text-gray-500 text-xs tabular-nums shrink-0">{{ tag.gallery_count }}</span>
                 </button>
               </div>
             </div>
