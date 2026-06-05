@@ -153,13 +153,6 @@ async function fetchCategories() {
   catch { categories.value = [] }
 }
 
-async function fetchGalleries() {
-  try {
-    const d = await (await fetch(`${API}/galleries`)).json()
-    galleries.value = d.galleries || d.items || d || []
-  } catch { galleries.value = [] }
-}
-
 async function loadImages() {
   loading.value = true; error.value = ''; images.value = []; hasMore.value = false
   if (!selectedTag.value) { hasMore.value = true; mode.value = 'random'; loadRandom(); return }
@@ -198,9 +191,9 @@ async function appendRandom() {
 }
 
 async function loadMore() {
-  if (mode.value === 'gallery-detail' && selectedGallery.value) {
+  if (mode.value === 'gallery' && selectedGallery.value) {
     galleryPage.value++
-    loadGalleryPage(selectedGallery.value, galleryPage.value)
+    loadGalleryPage(galleryPage.value)
     return
   }
   await appendRandom()
@@ -239,33 +232,41 @@ function selectMode(m) {
   } else if (m === 'gallery') {
     mode.value = 'gallery'; selectedTag.value = ''; selectedCategory.value = ''; searchQuery.value = ''
     images.value = []; loading.value = true; error.value = ''
-    fetchGalleries().then(() => { loading.value = false })
+    galleryPage.value = 1; galleryTotalPages.value = 1
+    loadRandomGallery()
   }
 }
 
-function selectGallery(gallery) {
-  selectedGallery.value = gallery
-  mode.value = 'gallery-detail'
+function loadRandomGallery() {
+  mode.value = 'gallery'
   loading.value = true; error.value = ''; images.value = []
-  galleryPage.value = 1; galleryTotalPages.value = 1
-  loadGalleryPage(gallery, 1)
-}
-
-function loadGalleryPage(gallery, page) {
-  const id = gallery.id || gallery.gallery_id
-  const pageParam = page > 1 ? `?page=${page}` : ''
-  fetch(`${API}/gallery/${id}${pageParam}`).then(r => r.json()).then(d => {
-    const raw = d.images || d.items || []
-    // Track pagination
+  fetch(`${API}/gallery/random`).then(r => r.json()).then(d => {
+    selectedGallery.value = { id: d.id, title: d.title, name: d.name }
+    galleryPage.value = 1
     const pagination = d.images_pagination || {}
     galleryTotalPages.value = pagination.total_pages || 1
+    const raw = d.images || d.items || []
+    images.value = raw.map(item => {
+      const imgId = item.id || item.image_id
+      return { id: imgId, url: `${API}/image/${imgId}`, metaUrl: `${API}/image/${imgId}/meta` }
+    })
+    loading.value = false
+  }).catch(() => { error.value = 'Failed to load gallery'; loading.value = false })
+}
 
-    // Use ALL image IDs from the API response — show them as-is
+function loadGalleryPage(page) {
+  if (!selectedGallery.value) return
+  const id = selectedGallery.value.id
+  const pageParam = page > 1 ? `?page=${page}` : ''
+  loading.value = true
+  fetch(`${API}/gallery/${id}${pageParam}`).then(r => r.json()).then(d => {
+    const pagination = d.images_pagination || {}
+    galleryTotalPages.value = pagination.total_pages || 1
+    const raw = d.images || d.items || []
     const mapped = raw.map(item => {
       const imgId = item.id || item.image_id
       return { id: imgId, url: `${API}/image/${imgId}`, metaUrl: `${API}/image/${imgId}/meta` }
     })
-
     if (page === 1) {
       images.value = mapped
     } else {
@@ -277,16 +278,11 @@ function loadGalleryPage(gallery, page) {
 }
 
 function refreshGallery() {
-  if (selectedGallery.value) {
-    galleryPage.value = 1; images.value = []
-    loadGalleryPage(selectedGallery.value, 1)
-  }
+  loadRandomGallery()
 }
 
 function backToGalleries() {
-  mode.value = 'gallery'; images.value = []; selectedGallery.value = null
-  selectedTag.value = ''; selectedCategory.value = ''
-  galleryPage.value = 1; hasMore.value = false
+  loadRandomGallery()
 }
 
 function resetZoom() { zoom.value = 1; panX.value = 0; panY.value = 0 }
@@ -408,7 +404,7 @@ function panEnd() { isPanning.value = false }
               随机
             </span>
           </button>
-          <button @click="selectMode('gallery')" :class="mode==='gallery' || mode==='gallery-detail' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-800/60 text-gray-400 hover:text-white hover:bg-gray-700/50'" class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-150 min-h-[32px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60" role="tab">
+          <button @click="selectMode('gallery')" :class="mode==='gallery' ? 'bg-indigo-600 text-white shadow-sm' : 'bg-gray-800/60 text-gray-400 hover:text-white hover:bg-gray-700/50'" class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-150 min-h-[32px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/60" role="tab">
             <span class="flex items-center gap-1.5">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
               图集
@@ -425,7 +421,7 @@ function panEnd() { isPanning.value = false }
     <!-- Main -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
       <!-- Loading skeleton -->
-      <div v-if="loading && mode !== 'gallery'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+      <div v-if="loading && mode === 'random'" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
         <div v-for="i in 6" :key="i" class="aspect-[3/4] rounded-xl bg-gray-800/60 animate-pulse" />
       </div>
 
@@ -436,48 +432,21 @@ function panEnd() { isPanning.value = false }
         <button @click="selectedTag?loadImages():loadRandom()" class="px-4 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm text-gray-300 transition-colors duration-150 cursor-pointer">Retry</button>
       </div>
 
-      <!-- Gallery list -->
-      <div v-else-if="mode === 'gallery' && !loading" class="space-y-4">
-        <div class="flex items-center gap-2 text-gray-400">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
-          <h2 class="text-lg font-semibold text-white">图集列表</h2>
-          <span class="text-xs text-gray-500">{{ galleries.length }} 个图集</span>
-        </div>
-        <div v-if="!galleries.length" class="flex flex-col items-center justify-center py-24 text-gray-500 gap-4">
-          <svg class="w-12 h-12 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-          <p class="text-sm">No galleries available</p>
-        </div>
-        <div v-else class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 sm:gap-4">
-          <div v-for="gallery in galleries" :key="gallery.id || gallery.gallery_id" @click="selectGallery(gallery)" class="group relative cursor-pointer rounded-xl overflow-hidden bg-gray-800/40 border border-gray-800/60 hover:border-indigo-500/30 transition-all duration-300 p-4 flex flex-col gap-2 min-h-[100px]">
-            <div class="flex items-start gap-2">
-              <svg class="w-5 h-5 text-indigo-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-              <div class="min-w-0">
-                <p class="text-sm font-medium text-gray-200 truncate group-hover:text-white transition-colors">{{ gallery.title || gallery.name || 'Gallery' }}</p>
-                <p v-if="gallery.image_count || gallery.count" class="text-xs text-gray-500 mt-0.5">{{ gallery.image_count || gallery.count }} 张图片</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Gallery detail -->
-      <div v-else-if="mode === 'gallery-detail'" class="space-y-4">
+      <!-- Gallery: random gallery with its images -->
+      <div v-else-if="mode === 'gallery'" class="space-y-4">
         <div class="flex items-center gap-2 flex-wrap">
-          <button @click="backToGalleries" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-gray-800/60 hover:bg-gray-700/50 text-gray-400 hover:text-white rounded-lg text-xs font-medium transition-colors duration-150 cursor-pointer shrink-0">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 12H5m0 0l7-7m-7 7l7 7" /></svg>
-            返回
-          </button>
-          <span v-if="selectedGallery" class="text-sm text-gray-300 font-medium truncate flex-1 min-w-0">{{ selectedGallery.title || selectedGallery.name }}</span>
-          <button @click="refreshGallery" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/80 hover:bg-indigo-600 text-white rounded-lg text-xs font-medium transition-colors duration-150 cursor-pointer shrink-0" title="重新加载随机图片">
+          <svg class="w-5 h-5 text-indigo-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" /></svg>
+          <span v-if="selectedGallery" class="text-sm text-gray-300 font-medium truncate flex-1 min-w-0">{{ selectedGallery.title || '随机图集' }}</span>
+          <button @click="loadRandomGallery" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/80 hover:bg-indigo-600 text-white rounded-lg text-xs font-medium transition-colors duration-150 cursor-pointer shrink-0" title="下一个随机图集">
             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
-            换一批
+            下一个
           </button>
         </div>
         <!-- Loading skeleton -->
         <div v-if="loading" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
           <div v-for="i in 6" :key="i" class="aspect-[3/4] rounded-xl bg-gray-800/60 animate-pulse" />
         </div>
-        <!-- Images (loaded via tag/random) -->
+        <!-- Gallery images -->
         <template v-else>
           <div v-if="images.length" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
             <div v-for="img in images" :key="img.id" @click="openModal(img)" class="group relative cursor-pointer rounded-xl overflow-hidden bg-gray-800/40 aspect-[3/4] ring-1 ring-gray-800/50 hover:ring-indigo-500/30 transition-all duration-300">
@@ -485,9 +454,9 @@ function panEnd() { isPanning.value = false }
               <div class="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             </div>
           </div>
-          <div v-else class="flex flex-col items-center justify-center py-24 text-gray-500 gap-4">
+          <div v-else-if="!loading" class="flex flex-col items-center justify-center py-24 text-gray-500 gap-4">
             <svg class="w-12 h-12 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-            <p class="text-sm">No images in this gallery</p>
+            <p class="text-sm">No images available</p>
           </div>
           <!-- Load More -->
           <div v-if="images.length && hasMore" class="flex flex-col items-center py-8 gap-4">
