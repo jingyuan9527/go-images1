@@ -46,6 +46,7 @@ func init() {
 	proxyCache.SetTTL("/v1/featured-tags", 120*time.Second)
 	proxyCache.SetTTL("/v1/categories", 120*time.Second)
 	proxyCache.SetTTL("/v1/site-config", 300*time.Second)
+	proxyCache.SetTTL("/v1/galleries", 120*time.Second)
 }
 
 func main() {
@@ -56,28 +57,31 @@ func main() {
 
 	mux := http.NewServeMux()
 
-	// Auth
-	if password != "" {
-		mux.HandleFunc("/api/auth", func(w http.ResponseWriter, r *http.Request) {
-			if r.Method != "POST" {
-				http.Error(w, "method not allowed", 405)
-				return
-			}
-			var body struct {
-				Password string `json:"password"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-				http.Error(w, "bad request", 400)
-				return
-			}
-			if subtle.ConstantTimeCompare([]byte(body.Password), []byte(password)) == 1 {
-				w.WriteHeader(200)
-				json.NewEncoder(w).Encode(map[string]bool{"ok": true})
-				return
-			}
-			http.Error(w, "forbidden", 403)
-		})
-	}
+	// Auth — always register handler; when password is empty, accept any request
+	mux.HandleFunc("/api/auth", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			http.Error(w, "method not allowed", 405)
+			return
+		}
+		if password == "" {
+			w.WriteHeader(200)
+			json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+			return
+		}
+		var body struct {
+			Password string `json:"password"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			http.Error(w, "bad request", 400)
+			return
+		}
+		if subtle.ConstantTimeCompare([]byte(body.Password), []byte(password)) == 1 {
+			w.WriteHeader(200)
+			json.NewEncoder(w).Encode(map[string]bool{"ok": true})
+			return
+		}
+		http.Error(w, "forbidden", 403)
+	})
 
 	mux.HandleFunc("/api/proxy/", proxyHandler)
 	mux.HandleFunc("/api/proxy", proxyHandler)
@@ -149,6 +153,8 @@ func shouldCache(path string) bool {
 	if strings.HasPrefix(path, "/v1/tags") ||
 		strings.HasPrefix(path, "/v1/featured-tags") ||
 		strings.HasPrefix(path, "/v1/categories") ||
+		strings.HasPrefix(path, "/v1/galleries") ||
+		strings.HasPrefix(path, "/v1/gallery/") ||
 		(strings.HasPrefix(path, "/v1/image/") && strings.HasSuffix(path, "/meta")) {
 		return true
 	}
