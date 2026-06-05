@@ -93,6 +93,9 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 	if shouldCache(targetPath) {
 		if entry, ok := proxyCache.Get(targetPath, r.URL.RawQuery); ok {
 			w.Header().Set("Content-Type", entry.ContentType)
+			if entry.ContentEncoding != "" {
+				w.Header().Set("Content-Encoding", entry.ContentEncoding)
+			}
 			w.Header().Set("X-Cache", "HIT")
 			w.Write(entry.Data)
 			log.Printf("[PROXY] %s %s -> 200 (cache) %s", r.Method, r.URL.Path, time.Since(start))
@@ -108,7 +111,7 @@ func proxyHandler(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[PROXY] %s %s -> %d (%dms)", r.Method, r.URL.Path, rec.code, elapsed.Milliseconds())
 
 	if shouldCache(targetPath) && rec.code == 200 && len(rec.body.Bytes()) > 0 {
-		proxyCache.Set(targetPath, r.URL.RawQuery, rec.body.Bytes(), rec.Header().Get("Content-Type"))
+		proxyCache.Set(targetPath, r.URL.RawQuery, rec.body.Bytes(), rec.Header().Get("Content-Type"), rec.Header().Get("Content-Encoding"))
 	}
 }
 
@@ -139,9 +142,10 @@ func (r *responseRecorder) Write(b []byte) (int, error) {
 }
 
 type cacheEntry struct {
-	Data        []byte
-	ContentType string
-	Expires     time.Time
+	Data            []byte
+	ContentType     string
+	ContentEncoding string
+	Expires         time.Time
 }
 
 type Cache struct {
@@ -190,13 +194,14 @@ func (c *Cache) Get(path, query string) (*cacheEntry, bool) {
 	return entry, true
 }
 
-func (c *Cache) Set(path, query string, data []byte, contentType string) {
+func (c *Cache) Set(path, query string, data []byte, contentType, contentEncoding string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.items[c.key(path, query)] = &cacheEntry{
-		Data:        data,
-		ContentType: contentType,
-		Expires:     time.Now().Add(c.ttlFor(path)),
+		Data:            data,
+		ContentType:     contentType,
+		ContentEncoding: contentEncoding,
+		Expires:         time.Now().Add(c.ttlFor(path)),
 	}
 }
 
