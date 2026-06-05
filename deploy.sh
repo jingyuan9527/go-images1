@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_NAME="webapp"
+APP_NAME="go-images"
 PORT="${PORT:-8808}"
+BIND_ADDR="${BIND_ADDR:-127.0.0.1}"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -28,24 +29,25 @@ if [ ! -f Dockerfile ]; then
   exit 1
 fi
 
-info "Building Docker image (this may take a few minutes)..."
+info "Building Docker image..."
 docker build -t "$APP_NAME" .
 
 if docker ps -a --format '{{.Names}}' | grep -q "^${APP_NAME}$"; then
-  warn "Removing existing container with the same name..."
-  docker rm -f "$APP_NAME" >/dev/null
+  warn "Stopping and removing existing container..."
+  docker stop "$APP_NAME" >/dev/null 2>&1 || true
+  docker rm "$APP_NAME" >/dev/null 2>&1 || true
 fi
 
 PROXY_ARGS=""
-if [ -n "${HTTP_PROXY:-}" ] || [ -n "${http_proxy:-}" ]; then
-  PROXY="${HTTP_PROXY:-${http_proxy}}"
-  PROXY_ARGS="$PROXY_ARGS -e HTTP_PROXY=$PROXY -e HTTPS_PROXY=$PROXY"
-  info "Using proxy: $PROXY"
+proxy="${HTTP_PROXY:-${http_proxy:-}}"
+if [ -n "$proxy" ]; then
+  PROXY_ARGS="-e HTTP_PROXY=$proxy -e HTTPS_PROXY=$proxy"
+  info "Using proxy: $proxy"
 fi
 
-info "Starting container on port $PORT..."
+info "Starting container on ${BIND_ADDR}:${PORT}..."
 docker run -d \
-  -p "$PORT:8808" \
+  -p "${BIND_ADDR}:${PORT}:8808" \
   $PROXY_ARGS \
   --name "$APP_NAME" \
   --restart unless-stopped \
@@ -53,15 +55,15 @@ docker run -d \
 
 sleep 2
 
-IP=$(curl -s --max-time 3 http://localhost:"$PORT/" 2>/dev/null | head -1 || true)
-if [ -n "$IP" ]; then
+if curl -s -o /dev/null -w "" --max-time 3 "http://localhost:${PORT}/" 2>/dev/null; then
   info "Deployment successful!"
-
-  HOST_IP=$(ip -4 addr show | grep -oP 'inet \K[\d.]+' | grep -v '127.0.0.1\|^172\.' | head -1 || echo "localhost")
   echo ""
-  echo "  Local:   http://localhost:$PORT"
-  echo "  Network: http://$HOST_IP:$PORT"
+  echo "  Local:   http://localhost:${PORT}"
+  echo "  Network: http://$(ip -4 addr show | grep -oP 'inet \K[\d.]+' | grep -v '127.0.0.1\|^172\.' | head -1):${PORT}"
   echo ""
+  echo "  To change bind address, run:"
+  echo "    BIND_ADDR=0.0.0.0 ./deploy.sh"
+  echo "    BIND_ADDR=127.0.0.1 ./deploy.sh"
 else
   warn "Container started but service is not responding yet."
   echo "Check logs: docker logs $APP_NAME"

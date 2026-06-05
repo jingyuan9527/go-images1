@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, onUnmounted } from 'vue'
 
 const API = '/api/proxy/v1'
 const images = ref([])
@@ -10,6 +10,8 @@ const selectedTag = ref('')
 const selectedCategory = ref('')
 const orientation = ref('')
 const loading = ref(false)
+const loadingMore = ref(false)
+const hasMore = ref(true)
 const error = ref('')
 const modalImg = ref(null)
 const modalMeta = ref(null)
@@ -32,6 +34,9 @@ const filteredTags = computed(() => {
   return list.filter(t => (t.name || t).toLowerCase().includes(q)).slice(0, 80)
 })
 
+let observer = null
+const sentinel = ref(null)
+
 onMounted(async () => {
   await Promise.all([fetchTags(), fetchFeaturedTags(), fetchCategories()])
   if (featuredTags.value.length > 0) {
@@ -41,6 +46,22 @@ onMounted(async () => {
     loadRandom()
   }
 })
+
+onUnmounted(() => { if (observer) observer.disconnect() })
+
+function observeScroll() {
+  setTimeout(() => {
+    if (observer) observer.disconnect()
+    const el = document.getElementById('scroll-sentinel')
+    if (!el) return
+    observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting && hasMore.value && !loadingMore.value && !loading.value) {
+        loadMore()
+      }
+    }, { rootMargin: '300px' })
+    observer.observe(el)
+  }, 100)
+}
 
 async function fetchTags() {
   try { const d = await (await fetch(`${API}/tags`)).json(); tags.value = d.items || d.tags || d || [] }
@@ -58,23 +79,43 @@ async function fetchCategories() {
 }
 
 async function loadImages() {
-  loading.value = true; error.value = ''; images.value = []
-  if (!selectedTag.value) { loadRandom(); return }
+  loading.value = true; error.value = ''; images.value = []; hasMore.value = false
+  if (!selectedTag.value) { hasMore.value = true; loadRandom(); return }
   try {
     const d = await (await fetch(`${API}/tag/${encodeURIComponent(selectedTag.value)}/preview`)).json()
     const ids = d.image_ids || d.ids || []
     images.value = ids.map(id => ({ id, url: `${API}/image/${id}`, metaUrl: `${API}/image/${id}/meta` }))
   } catch { error.value = 'Failed to load images' }
   loading.value = false
+  observeScroll()
 }
 
-function loadRandom() {
-  loading.value = false; error.value = ''
-  images.value = Array.from({ length: 18 }, (_, i) => {
-    const p = new URLSearchParams({ _t: Date.now() + '_' + i })
-    if (orientation.value) p.set('orientation', orientation.value)
-    return { id: 'rand-' + i, url: `${API}/random?${p}` }
-  })
+async function loadRandom() {
+  loading.value = true; error.value = ''; images.value = []; hasMore.value = true
+  loading.value = false
+  await appendRandom()
+}
+
+async function appendRandom() {
+  if (loadingMore.value) return
+  loadingMore.value = true
+  const p = new URLSearchParams({ _t: Date.now() })
+  if (orientation.value) p.set('orientation', orientation.value)
+  try {
+    const resp = await fetch(`${API}/random?${p}`)
+    if (!resp.ok) { loadingMore.value = false; return }
+    const id = 'rand-' + Date.now()
+    images.value.push({ id, url: `${API}/random?${p}`, metaUrl: null })
+    hasMore.value = true
+  } catch { hasMore.value = false }
+  loadingMore.value = false
+  observeScroll()
+}
+
+async function loadMore() {
+  if (!selectedTag.value && !selectedCategory.value) {
+    await appendRandom()
+  }
 }
 
 function selectTag(tag) {
@@ -90,7 +131,8 @@ function selectCategory(cat) {
 
 function toggleOrientation(o) {
   orientation.value = orientation.value === o ? '' : o
-  if (selectedTag.value) loadImages(); else loadRandom()
+  if (selectedTag.value || selectedCategory.value) { images.value = []; loadImages() }
+  else { images.value = []; loadRandom() }
 }
 
 function resetZoom() { zoom.value = 1; panX.value = 0; panY.value = 0 }
@@ -105,34 +147,27 @@ function closeModal() { showModal.value = false; modalImg.value = null; modalMet
 function handleWheel(e) {
   if (e.ctrlKey || e.metaKey) { e.preventDefault(); zoom.value = Math.max(1, Math.min(5, zoom.value + (e.deltaY > 0 ? -0.1 : 0.1))) }
 }
-
 function touchStartImg(e) {
   if (e.touches.length === 2) lastDist.value = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY)
 }
-
 function touchMoveImg(e) {
-  if (e.touches.length === 2) {
-    e.preventDefault()
+  if (e.touches.length === 2) { e.preventDefault();
     const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY)
     zoom.value = Math.max(1, Math.min(5, zoom.value * (d / lastDist.value))); lastDist.value = d
   }
 }
-
 function handleDblClick() {
   zoom.value = zoom.value > 1 ? 1 : 2.5
   if (zoom.value === 1) { panX.value = 0; panY.value = 0 }
 }
-
 function panStart(e) {
   if (zoom.value <= 1) return; isPanning.value = true
   startX.value = e.clientX - panX.value; startY.value = e.clientY - panY.value
 }
-
 function panMove(e) {
   if (!isPanning.value) return
   panX.value = e.clientX - startX.value; panY.value = e.clientY - startY.value
 }
-
 function panEnd() { isPanning.value = false }
 </script>
 
@@ -205,6 +240,16 @@ function panEnd() { isPanning.value = false }
       <div v-else class="flex flex-col items-center justify-center py-24 text-gray-500 gap-4">
         <svg class="w-12 h-12 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
         <p class="text-sm">Select a tag to browse images</p>
+      </div>
+
+      <!-- Scroll sentinel + Load More -->
+      <div v-if="images.length && hasMore && !selectedTag && !selectedCategory" class="flex flex-col items-center py-8 gap-4">
+        <div id="scroll-sentinel" class="h-4" />
+        <button v-if="!loadingMore" @click="loadMore" class="px-6 py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 hover:text-white rounded-xl text-sm font-medium transition-all duration-150 cursor-pointer border border-gray-700/50">Load More</button>
+        <div v-if="loadingMore" class="flex items-center gap-2 text-gray-500 text-sm">
+          <div class="animate-spin h-4 w-4 border-2 border-indigo-500 border-t-transparent rounded-full" />
+          Loading...
+        </div>
       </div>
     </main>
 
